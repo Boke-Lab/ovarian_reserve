@@ -1,0 +1,81 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+all_stages = pd.read_excel(## load all segmented oocyte in long format.xslx)
+all_stages= all_stages[(all_stages["sqrt(a*b)"]>10) & (all_stages["sqrt(a*b)"]<100)] 
+peak_data = []
+grouped_by_age = all_stages.groupby("age")
+
+for age, age_group in grouped_by_age:
+    grouped_by_id = age_group.groupby("id")
+    for sample_id, group in grouped_by_id:
+        signal = group["sqrt(a*b)"].values
+        counts, bin_edges = np.histogram(signal, bins=150)
+        peak_idx = np.argmax(counts)
+        peak_center = (bin_edges[peak_idx] + bin_edges[peak_idx + 1]) / 2
+        peak_data.append({"id": sample_id, "age": age, "peak_sqrt_ab": peak_center})
+
+df_peaks = pd.DataFrame(peak_data)
+
+# --- STEP 2: Compute global mean peak ---
+global_peak_mean = df_peaks["peak_sqrt_ab"].mean()
+print(f"Global mean peak_sqrt_ab = {global_peak_mean:.2f}")
+
+for age in df_peaks["age"].unique():
+    ids_in_age = df_peaks[df_peaks["age"] == age]["id"]
+    n = len(ids_in_age)
+    n_cols = 3
+    n_rows = int(np.ceil(n / n_cols))
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+    axes = axes.flatten()
+
+    for idx, sample_id in enumerate(ids_in_age):
+        ax = axes[idx]
+        group = all_stages[all_stages["id"] == sample_id]
+        signal = group["sqrt(a*b)"].values
+
+        # Get the sample's individual peak
+        individual_peak = df_peaks[df_peaks["id"] == sample_id]["peak_sqrt_ab"].values[0]
+
+        # Shift signal to align with global peak
+        shift = individual_peak - global_peak_mean
+        normalized_signal = signal - shift
+        
+        # ✅ Plot both original and shifted histograms
+        ax.hist(signal, bins=150, alpha=0.4, color='grey', label='Original')
+        ax.hist(normalized_signal, bins=150, alpha=0.6, color='blue', label='Shifted')
+
+        ax.set_title(f"ID: {sample_id}")
+        ax.set_xlabel("sqrt(a*b)")
+        ax.set_ylabel("Count")
+        ax.legend()
+        ax.grid(True)
+
+    # Remove unused axes
+    for i in range(idx + 1, len(axes)):
+        fig.delaxes(axes[i])
+
+    fig.suptitle(f"Age: {age}", fontsize=16, fontweight='bold')
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show()
+
+# Create a dictionary for fast lookup: id → peak_sqrt_ab
+peak_dict = df_peaks.set_index("id")["peak_sqrt_ab"].to_dict()
+
+# Global reference
+global_peak_mean = df_peaks["peak_sqrt_ab"].mean()
+
+# Compute aligned sqrt(a*b) for each row
+def shift_peak(row):
+    sample_id = row["id"]
+    if sample_id in peak_dict:
+        shift = peak_dict[sample_id] - global_peak_mean
+        return row["sqrt(a*b)"] - shift
+    else:
+        return np.nan  # or row["sqrt(a*b)"] if you prefer no change
+
+# Add a new column
+all_stages["aligned_sqrt_ab"] = all_stages.apply(shift_peak, axis=1)
+all_stages.to_excel(r"insert here the path adrress of te corrected xlsx )
