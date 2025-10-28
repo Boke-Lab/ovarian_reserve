@@ -1,0 +1,354 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+from scipy.optimize import least_squares
+from matplotlib import rcParams
+import matplotlib as mpl
+
+mpl.rcParams['pdf.fonttype'] = 42  # TrueType — keeps text as real fonts
+mpl.rcParams['ps.fonttype'] = 42
+rcParams['font.size'] = 12
+rcParams['axes.labelsize'] = 12
+rcParams['xtick.labelsize'] = 15
+rcParams['ytick.labelsize'] = 10
+rcParams['legend.fontsize'] = 9
+rcParams['figure.figsize'] = (10, 6)
+rcParams['axes.linewidth'] = 0.8
+rcParams['lines.linewidth'] = 1.5
+# -----------------------------
+# CONFIG
+# -----------------------------
+# Interpret ps as per-week transition probabilities (converted to continuous rates)
+USE_PROBABILITIES_FOR_PS = True  # set False to treat ps as rates (/week)
+
+
+# Bounds for parameters when ps are probabilities per week
+LB = np.array([0,   0,   0,   0,   0  ], dtype=float)   # p1,p2,p3,d1,d4
+UB = np.array([0.5, 0.5, 0.5, 0.8, 0.8], dtype=float)
+
+
+# If you switch to rates, consider UB like [2.0, 2.0, 2.0, 1.0, 1.0] (/week)
+# and set USE_PROBABILITIES_FOR_PS = False
+
+
+# data for the model
+# ntypes = ['primordial(<18)', 'primary', 'secondary', 'antral']
+# data_05 = pd.read_excel("data/week05.xlsx")
+# data_10 = pd.read_excel("data/week10.xlsx")
+# data_22 = pd.read_excel("data/week22.xlsx")
+# data_31 = pd.read_excel("data/week31.xlsx")
+# data_40 = pd.read_excel("data/week40.xlsx")
+# data_50 = pd.read_excel("data/week50.xlsx")
+# data_60 = pd.read_excel("data/week60.xlsx")
+
+
+
+data_05["week"] = 5
+data_10["week"] = 10
+data_22["week"] = 22
+data_31["week"] = 31
+data_40["week"] = 40
+data_50["week"] = 50
+data_60["week"] = 60
+
+
+data_xls = pd.concat([data_05, data_10, data_22, data_31, data_40, data_50, data_60], ignore_index=True)
+data_xls = data_xls[ntypes + ["week", "volume"]].copy()
+
+
+# Convert volume to mm^3 if 'volume' was in μm^3 (maintain your 1e-09 factor)
+data_xls["volume"] = data_xls["volume"] * 1e-09
+
+
+# Drop rows with any NaNs in the used columns
+data_xls = data_xls.dropna(subset=ntypes + ["week", "volume"]).reset_index(drop=True)
+
+
+# Normalize counts by volume (your original code divided by volumes/2)
+volumes = data_xls["volume"].to_numpy()
+for ntype in ntypes:
+    data_xls[ntype] = data_xls[ntype] / (volumes / 2.0)
+
+
+# Prepare arrays
+weeks = data_xls["week"].to_numpy(dtype=float)           # measurement times
+y_mat = data_xls[ntypes].to_numpy(dtype=float)           # (N,4) observations
+
+
+# Initial condition at week 5: mean across replicates at week 5
+week5_mask = (data_xls["week"] == 5)
+if not np.any(week5_mask):
+    raise ValueError("No week 5 rows found; please ensure data includes week=5 for initial condition.")
+ns0 = data_xls.loc[week5_mask, ntypes].to_numpy(dtype=float).mean(axis=0)
+
+
+# Optional scaling (improves conditioning of the Jacobian)
+y_scale = y_mat.std(axis=0, ddof=1)
+y_scale[y_scale == 0] = 1.0
+
+
+# -----------------------------
+# MODEL: ODE SIMULATOR
+# -----------------------------
+def simulate_transitions_ode(ns, ps, ds, t_eval, t0=None, probs=True,
+                             rtol=1e-6, atol=1e-9, method="RK45"):
+    """
+    Linear 4-compartment model:
+      dN0/dt = -(d0 + p0) N0
+      dN1/dt =  p0 N0 - (d1 + p1) N1
+      dN2/dt =  p1 N1 - (d2 + p2) N2
+      dN3/dt =  p2 N2 - d3 N3
+    """
+    ns = np.asarray(ns, dtype=float)
+    ps = np.asarray(ps, dtype=float)
+    ds = np.asarray(ds, dtype=float)
+
+
+    if probs:
+        # convert per-week probabilities to continuous-time rates (/week)
+        ps = -np.log(np.clip(1.0 - ps, 1e-12, 1.0))
+
+
+    if t0 is None:
+        t0 = float(np.min(t_eval))
+    t1 = float(np.max(t_eval))
+
+
+    def rhs(t, y):
+        N0, N1, N2, N3 = y
+        p0, p1, p2 = ps
+        d0, d1, d2, d3 = ds
+        dN0 = -(d0 + p0) * N0
+        dN1 =  (p0 * N0) - (d1 + p1) * N1
+        dN2 =  (p1 * N1) - (d2 + p2) * N2
+        dN3 =  (p2 * N2) - d3 * N3
+        return [dN0, dN1, dN2, dN3]
+
+
+    t_eval = np.asarray(t_eval, dtype=float)
+    # solve_ivp requires strictly increasing t_eval; remove duplicates but preserve mapping
+    t_eval_unique, inv = np.unique(t_eval, return_inverse=True)
+
+
+    sol = solve_ivp(rhs, (t0, t1), ns, t_eval=t_eval_unique,
+                    method=method, rtol=rtol, atol=atol, vectorized=False)
+
+
+    if not sol.success:
+        raise RuntimeError(f"ODE solver failed: {sol.message}")
+
+
+    Y_unique = sol.y.T  # (len(t_eval_unique), 4)
+    # Map back to the original (possibly duplicated) t_eval order
+    Y = Y_unique[inv]
+    return t_eval, Y
+
+
+# -----------------------------
+# FITTING (d2=d3 FIXED TO 0)
+# -----------------------------
+# theta = [p1, p2, p3, d1, d4]; we fix d2=d3=0 inside residuals
+def residuals(theta):
+    p1, p2, p3, d1, d4 = np.asarray(theta, dtype=float)
+    ps = np.array([p1, p2, p3], dtype=float)
+    ds = np.array([d1, 0.0, 0.0, d4], dtype=float)  # FIXED d2=d3=0
+    _, yhat = simulate_transitions_ode(ns0, ps, ds, t_eval=weeks,
+                                       t0=weeks.min(),
+                                       probs=USE_PROBABILITIES_FOR_PS)
+    res = (y_mat - yhat) / y_scale
+    return res.ravel(order="C")
+
+
+# Initial guess (close to your earlier values)
+theta0 = np.array([0.01, 0.06, 0.20, 0.04, 0.30], dtype=float)
+
+
+fit = least_squares(residuals, theta0, bounds=(LB, UB), method='trf', jac='2-point')
+theta_hat = fit.x
+J = fit.jac
+res_vec = fit.fun
+N = res_vec.size
+p = theta_hat.size
+RSS = float(res_vec @ res_vec)
+dof = max(N - p, 1)
+s2 = RSS / dof
+
+
+# Covariance and standard errors (use pseudoinverse for stability)
+JTJ = J.T @ J
+JTJ_inv = np.linalg.pinv(JTJ)
+cov = s2 * JTJ_inv
+se = np.sqrt(np.clip(np.diag(cov), 0.0, np.inf))
+
+
+# Bound warning
+at_lower = np.isclose(theta_hat, LB, atol=1e-8)
+at_upper = np.isclose(theta_hat, UB, atol=1e-8)
+if at_lower.any() or at_upper.any():
+    print("Note: some parameters are at bounds; SEs may be unreliable or effectively infinite.")
+
+
+# Print results
+param_names = ["p1 (P→P2)", "p2 (P2→S)", "p3 (S→A)", "d1 (P death)", "d4 (A death)"]
+print("\n=== Fit summary (d2=d3 fixed to 0) ===")
+for name, val, err in zip(param_names, theta_hat, se):
+    print(f"{name:<14s} = {val: .6f}  ± {err:.6f}")
+print(f"RSS = {RSS:.6g},  N = {N},  p = {p},  dof = {dof},  s^2 = {s2:.6g}")
+
+
+# For reporting a full 7-parameter vector:
+full_theta = np.array([theta_hat[0], theta_hat[1], theta_hat[2],
+                       theta_hat[3], 0.0, 0.0, theta_hat[4]])
+full_se = np.array([se[0], se[1], se[2], se[3], 0.0, 0.0, se[4]])
+
+
+
+
+
+
+
+
+
+
+
+
+# -----------------------------
+# PRETTY PLOTTING: violins + jitter + fit + param fan + week5 IC lines
+# -----------------------------
+rng = np.random.default_rng(0)
+
+
+# 1) Per-week arrays for violins/scatter
+weeks_unique = np.sort(data_xls["week"].unique())
+by_week = {w: data_xls.loc[data_xls["week"] == w, ntypes].to_numpy() for w in weeks_unique}
+
+
+def _collect(stage_idx):
+    return [by_week[w][:, stage_idx] for w in weeks_unique]
+
+
+# 2) Dense fitted curve (from mean week-5 IC used for fitting)
+t_dense = np.linspace(weeks_unique.min(), weeks_unique.max(), 400)
+ps_fit = theta_hat[:3]
+ds_fit = np.array([theta_hat[3], 0.0, 0.0, theta_hat[4]])
+_, y_fit_dense = simulate_transitions_ode(
+    ns0, ps_fit, ds_fit, t_eval=t_dense, t0=weeks_unique.min(),
+    probs=USE_PROBABILITIES_FOR_PS
+)
+
+
+# 3) Uncertainty fan: parameter draws from N(theta_hat, cov), clipped to bounds
+n_samples = 15
+try:
+    theta_samples = rng.multivariate_normal(theta_hat, cov, size=n_samples)
+except np.linalg.LinAlgError:
+    theta_samples = theta_hat + rng.normal(scale=1e-4, size=(n_samples, theta_hat.size))
+
+
+theta_samples[:, 0:3] = np.clip(theta_samples[:, 0:3], LB[0:3], UB[0:3])  # p1..p3
+theta_samples[:, 3]   = np.clip(theta_samples[:, 3],   LB[3],   UB[3])    # d1
+theta_samples[:, 4]   = np.clip(theta_samples[:, 4],   LB[4],   UB[4])    # d4
+
+
+fan_curves = []
+for th in theta_samples:
+    ps = th[:3]
+    ds = np.array([th[3], 0.0, 0.0, th[4]])
+    _, yfan = simulate_transitions_ode(
+        ns0, ps, ds, t_eval=t_dense, t0=weeks_unique.min(),
+        probs=USE_PROBABILITIES_FOR_PS
+    )
+    fan_curves.append(yfan)
+fan_curves = np.stack(fan_curves, axis=0)  # (n_samples, T, 4)
+
+
+# 4) Week-5 initial-condition lines (one per replicate at week 5)
+ns_week5 = data_xls.loc[data_xls["week"] == 5, ntypes].to_numpy()
+ic_curves = []
+for ns_ic in ns_week5:
+    _, y_ic = simulate_transitions_ode(
+        ns_ic, ps_fit, ds_fit, t_eval=t_dense, t0=weeks_unique.min(),
+        probs=USE_PROBABILITIES_FOR_PS
+    )
+    ic_curves.append(y_ic)
+ic_curves = np.stack(ic_curves, axis=0) if len(ic_curves) else np.empty((0, len(t_dense), 4))
+
+
+# 5) Figure
+plt.rcParams.update({
+    "font.size": 12,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+})
+
+
+fig, axs = plt.subplots(4, 1, figsize=(7.5, 11.5), sharex=True)
+stage_titles = ["Primordial", "Primary", "Secondary", "Antral"]
+
+
+
+
+for k, ax in enumerate(axs):
+    # Parametric uncertainty fan (thin light grey)
+    for j in range(fan_curves.shape[0]):
+        ax.plot(t_dense, fan_curves[j, :, k], color="0.6", alpha=0.08, linewidth=1.0)
+
+
+    # Week-5 IC replicates (thicker, darker grey)
+    for j in range(ic_curves.shape[0]):
+        ax.plot(t_dense, ic_curves[j, :, k], color="0.35", alpha=0.35, linewidth=.5,
+                label=None)
+
+
+    # Fitted curve (thick black)
+    ax.plot(t_dense, y_fit_dense[:, k], color="black", linewidth=3.0, label="fit" if k == 0 else None)
+
+
+    # Cosmetics
+    ax.set_ylabel(ntypes[k], labelpad=6)
+
+
+    # Headroom for y-limits
+    y_all = np.concatenate([y_mat[:, k], y_fit_dense[:, k]])
+    ymin = max(0.0, np.nanmin(y_all) * 0.9); ymax = np.nanmax(y_all) * 1.15 + 1e-9
+    if not np.isfinite(ymin): ymin = 0.0
+    if not np.isfinite(ymax): ymax = 1.0
+    ax.set_ylim(-5, ymax)
+
+
+for k, ax in enumerate(axs):
+    # Violin per week
+    data_k = _collect(k)
+    parts = ax.violinplot(
+        dataset=data_k,
+        positions=weeks_unique,
+        widths=3.2,
+        showmeans=False, showmedians=False, showextrema=False,
+    )
+    for b in parts['bodies']:
+        b.set_alpha(0.25)
+        b.set_edgecolor('blue')
+        b.set_linewidth(0.9)
+        b.set_facecolor('#5b9bd5')
+
+
+    # Jittered points
+    jitter = 0.5
+    for xi, w in enumerate(weeks_unique):
+        y_vals = data_k[xi]
+        if y_vals.size == 0: continue
+        x_j = w + rng.uniform(-jitter, jitter, size=y_vals.size)
+        ax.scatter(x_j, y_vals, s=35, alpha=0.6, color="royalblue", edgecolor="white", linewidths=0,
+                   label="Data" if xi == 0 else None)
+
+
+
+
+axs[-1].set_xlabel("Week")
+axs[0].legend(loc="upper right", frameon=False)
+
+
+fig.tight_layout()
+fig.savefig(##insert here the path for saving the figure .pdf",dpi=600, bbox_inches='tight', format='pdf')
+plt.show()
