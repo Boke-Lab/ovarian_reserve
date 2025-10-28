@@ -1,0 +1,144 @@
+import pandas as pd 
+import numpy as np 
+import matplotlib.pyplot as plt
+import scipy.spatial as sp
+import os
+from mpl_toolkits import mplot3d
+%matplotlib qt
+import os, glob
+import os, sys
+import seaborn 
+import matplotlib.animation as animation
+from IPython import display
+import vedo
+seaborn.set()
+vedo.settings.default_backend ="vtk"
+import seaborn as sns
+
+
+
+def density_oocyte(input_folder, output_folder):
+
+    pix_size = 0.867 
+   
+    # Create the output folder if it doesn't exist
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+           # List all files in the input folder
+    files = os.listdir(input_folder)
+    for file in files:
+        if file.endswith('.xlsx'):
+            input_path = os.path.join(input_folder, file)
+            data = pd.read_excel(input_path)
+
+            data["diameter"] = data["aligned_sqrt_ab"]
+            
+
+            # age = "week5"
+            
+
+            data = pd.DataFrame([data["Centroid.X"]*pix_size, data["Centroid.Y"]*pix_size, data["Centroid.Z"]*5,
+                         data["diameter"]]).transpose()
+            print(data)
+            
+            th1 = 16.30343369556121
+            th2 = 20.119707705759104
+            
+
+            primo = data[(data["diameter"]>10) & (data["diameter"]<=th1)]
+            transitioning =data[(data["diameter"]>th1) & (data["diameter"]<=th2)]
+
+
+            x, y, z, d = primo["Centroid.X"].to_numpy().astype(float), primo["Centroid.Y"].to_numpy().astype(float), primo["Centroid.Z"].to_numpy().astype(float),primo["diameter"].to_numpy().astype(float)
+            pts =  np.c_[x, y, z]
+
+
+
+            x4, y4, z4, d4 = transitioning["Centroid.X"].to_numpy().astype(float), transitioning["Centroid.Y"].to_numpy().astype(float), transitioning["Centroid.Z"].to_numpy().astype(float),transitioning["diameter"].to_numpy().astype(float)
+            pts4 =  np.c_[x4, y4, z4]
+
+            primo_vedo = vedo.Points(pts)
+
+            transisitoning_vedo = vedo.Points(pts4)
+#vedo.show(primo_vedo,primary_vedo,axes=1).close()
+            radius= 100
+            #pts = primo
+            df =[]
+            for p in (pts):
+
+                pts_a= primo_vedo.closest_point(p,radius=radius)
+                n = len(pts_a)
+    
+                df.append(n)
+            df= pd.DataFrame(df)
+
+            
+
+
+            df11 =[]
+            for p in (pts):
+                pts_btran= transisitoning_vedo.closest_point(p,radius=radius)
+                n = len(pts_btran)
+                df11.append(n)
+            df11= pd.DataFrame(df11)
+
+            radius1= 100
+
+            df2 =[]
+
+            df_trans =[]
+            for p in (pts4):
+                pts_c= primo_vedo.closest_point(p,radius=radius1)
+                n = len(pts_c)
+                df_trans.append(n)
+            df_trans= pd.DataFrame(df_trans)
+
+            df_trans_trans =[]
+            for p in (pts4):
+                pts_c= transisitoning_vedo.closest_point(p,radius=radius1)
+                n = len(pts_c)
+                df_trans_trans.append(n)
+            df_trans_trans= pd.DataFrame(df_trans_trans)
+        
+
+            file_name = os.path.basename(file)
+      
+
+
+
+           
+            df_total = pd.DataFrame()
+            df_total["primo_primo"]= df
+            df_total["primary"]= df1
+            df_total["transitioning"]= df11
+            df_total["primordia_in100umtransition"]= df_trans
+            df_total["transitioning_in100umtransition"]= df_trans_trans
+            df_total["radious_primo_primo"]= radius
+            df_total["secondary_primary"]= df2
+            df_total["antral_primary"]= df3
+            df_total["radious_other"]= radius1
+
+            df_total["age"] = file_name.split('_')[0]  # Extract 'w22' part
+            df_total["id"] = file_name.split('_')[1].split('.')[0]  # Extract '090987' part
+
+
+   
+
+            #Construct the new file path in the output folder
+            output_path = os.path.join(output_folder, file)
+
+
+            output_path = os.path.join(output_folder, os.path.splitext(file)[0] + '.xlsx') 
+
+            #Save the DataFrame to CSV in the new location
+            df_total.to_excel(output_path, index=False)
+            print(f"File '{file}' saved to '{output_path}'.")
+
+        
+
+            
+
+input_folder = r"path to folder with all the xlsx file of segmented oocytes. the file name has th start with th e age, eg.: w5_100104"
+output_folder = r"path to save output"
+density_oocyte(input_folder, output_folder)
