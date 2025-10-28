@@ -1,0 +1,260 @@
+import numpy as np
+import pandas as pd
+from os.path import join, exists
+from vedo import Volume, Mesh, Spline, fit_plane, mag, printc, Text2D
+from vedo import Text3D, Lines, settings, Plotter, Spheres, Arrow2D
+from vedo.pyplot import histogram
+
+
+directory  = r"insert here path of the folder. The folder must contain the xlsx file with the segmented oocyte coordinate and the raw tiff file of the ovary"
+ovary_name = "w60_121741" # insert the name of the ovary to be processsed
+spacing    = [0.867,0.867, 5]  # spacing in um
+spacing_seg = [0.867, 0.867, 5]
+isovalue   = None  # None is automatic
+smoothing  = 18    # None to disable
+R1         =  5    # minimum oocyte radius in um
+R2         = 100    # maximum oocyte radius in um
+
+
+######################################################## check files are there
+if not exists(join(directory, f"{ovary_name}.vti")):
+    printc("Resampling the volume: ", f"{ovary_name}.vti", c="y", italic=True)
+    vol = Volume(join(directory, f"{ovary_name}.tif"))
+    vol.spacing(spacing)
+    sx, sy, sz = vol.dimensions()
+    vol.resize([int(sx / 4), int(sy / 4), sz])
+    vol.write(join(directory, f"{ovary_name}.vti"))
+else:
+    printc("Volume already resampled: ", f"{ovary_name}.vti", c="g", italic=True)
+
+
+if not exists(join(directory, f"{ovary_name}_smoothed.vti")):
+    printc("Smoothing the volume: ", f"{ovary_name}_smoothed.vti", c="y", italic=True)
+    svol = Volume(join(directory, f"{ovary_name}.vti"))
+    if smoothing:
+        svol.smooth_gaussian(smoothing)
+        svol.write(join(directory, f"{ovary_name}_smoothed.vti"))
+else:
+    printc("Volume already smoothed: ", f"{ovary_name}_smoothed.vti", c="g", italic=True)
+    svol = Volume(join(directory, f"{ovary_name}_smoothed.vti"))
+
+
+if not exists(join(directory, f"{ovary_name}_smoothed_surf.vtk")):
+    printc("Computing isosurface: ", f"{ovary_name}_smoothed_surf.vtk", c="y", italic=True)
+    surface = svol.isosurface(isovalue).decimate(0.02).smooth()
+    surface.write(join(directory, f"{ovary_name}_smoothed_surf.vtk"))
+else:
+    printc("Isosurface already computed: ", f"{ovary_name}_smoothed_surf.vtk", c="g", italic=True)
+    surface = Mesh(join(directory, f"{ovary_name}_smoothed_surf.vtk"))
+
+
+# if not exists(join(directory, f"{ovary_name}_corrected_arturo_regions.vtk")):
+#     printc("Computing regions: ", f"{ovary_name}_corrected_arturo_regions.vtk", c="y", italic=True)
+#     vol_seg = Volume(join(directory, f"{ovary_name}_corrected_arturo.tif")).spacing(spacing)
+#     nlabels = int(vol_seg.scalar_range()[1])
+#     values = list(range(1, nlabels))
+#     mesh_regions = vol_seg.isosurface_discrete(values, nsmooth=10).clean().triangulate()
+#     arr = mesh_regions.celldata["BoundaryLabels"].astype(np.uint32)
+#     mesh_regions.celldata["BoundaryLabels"] = arr[:, 0]
+#     mesh_regions.map_cells_to_points(move=True)
+#     arr = mesh_regions.pointdata["BoundaryLabels"]
+#     pts = mesh_regions.vertices
+
+# data = pd.read_excel(r"Y:\adangelo\2024\final_corrected_data\5w\corrected\recheckd_20240904\morphilibj\diameter_in_im\w05_133230_230039016_corrected-morpho.xlsx")
+data= pd.read_excel(join(directory, f"{ovary_name}_corrected-morpho.xlsx"))
+    # cms, avg_sizes = [], []
+    # for i in range(int(max(arr) + 1)):
+    #     ids = np.where(arr == i)[0]
+    #     if len(ids) == 0:
+    #         continue
+    #     cm = np.mean(pts[ids], axis=0)
+    #     avg_size = np.mean(np.linalg.norm(pts[ids] - cm, axis=1))
+    #     cms.append(cm)
+    #     avg_sizes.append(avg_size)
+    # mesh_regions.metadata["centers"] = cms
+    # mesh_regions.metadata["sizes"] = avg_sizes
+    # mesh_regions.write(join(directory, f"{ovary_name}_corrected_arturo_regions.vtk"))
+x= data["Centroid.X"]
+y= data["Centroid.Y"]
+z= data["Centroid.Z"]
+cms= np.c_[x,y,z]*spacing_seg
+avg_sizes = data["sqrt(a*b)"]
+# else:
+#     printc("Regions already computed: ", f"{ovary_name}_corrected_arturo_regions.vtk", c="g", italic=True)
+#     mesh_regions = Mesh(join(directory,  f"{ovary_name}_corrected_arturo_regions.vtk"))
+# centers = mesh_regions.metadata["centers"]
+# sizes = mesh_regions.metadata["sizes"]
+centers = cms ###cambio center per cms
+sizes = avg_sizes ###cambio  mesh_regions.metadata["sizes"] per avg_sizes
+
+if exists(join(directory, f"{ovary_name}_nodes.npy")):
+    printc("Loading spline nodes: ", f"{ovary_name}_nodes.npy", c="g", italic=True)
+    nodes = np.load(join(directory, f"{ovary_name}_nodes.npy"))
+else:
+    # pick 3 points in the volume to define a line using the boundaries of the volume
+    printc("Drag points to add/modify the spline", c="r", invert=True)
+    bounds = svol.bounds()
+    x0, y0, z0, x1, y1, z1 = bounds
+    nodes = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z1)]
+
+
+########################################################
+def onpick(w=None, e="", flip=1):
+    np.save(join(directory, f"{ovary_name}_nodes.npy"), sptool.nodes())
+    respline = Spline(sptool.spline(), res=100)  # respline
+    pts = respline.vertices
+    tangents = respline.tangents()
+    fplane = fit_plane(pts).alpha(0.1).lighting("off")
+    pnormal = fplane.normal
+
+
+    data, lines, signs = [], [], []
+    for i, p in enumerate(centers):
+        r = sizes[i]
+        if not (R1 < r < R2):  ###raggio in um
+            continue
+        iq = respline.closest_point(p, return_point_id=True)
+        v = np.cross(tangents[iq], p - pts[iq])
+        s = np.dot(v, pnormal)
+        signs.append(s)
+        data.append([iq, r])
+        lines.append([pts[iq], p])
+    data = np.array(data)
+    lines = np.array(lines)
+    signs = np.sign(signs)
+
+
+    # flip plane normal if most points are below the plane
+    if np.sum(signs) > 0:
+        pnormal *= -1
+    pnormal *= flip  # flip plane normal if needed manually
+
+
+    nlines, vlabels, angles, radii, iqs = [], [], [], [], []
+    for i, d in enumerate(data):
+        iq = int(d[0])  ##numero lungo lo spline
+        p = pts[iq]
+        r = d[1]
+        t = tangents[iq]
+        ovocite = lines[i][1]
+        ovo = (ovocite - p) / mag(ovocite - p)
+        n = np.cross(t, pnormal)
+        nlines.append([p, p + 50 * n])
+        # find angle between ovo and n
+        angle = np.arccos(np.dot(n, ovo))
+        if np.dot(pnormal, ovo) < 0:
+            angle = 2 * np.pi - angle
+        tx = Text3D(f"{angle*57.3:.0f}°", pos=ovocite, s=8, justify="center")
+        vlabels.append(tx)
+        angles.append(angle)
+        radii.append(r)
+        iqs.append(iq)
+
+
+    df = pd.DataFrame()
+    df["angle"] = angles
+    df["radius"] = radii
+    df["position_along_spline"] = iqs
+    df.to_excel(join(directory, f"{ovary_name}.xlsx"))
+
+
+    angles = np.array(angles)
+    vlines = Lines(nlines, lw=3).c("green5")
+    olines = Lines(lines).c("gray", 0.25)
+    labels = respline.labels("id", scale=5)
+
+
+    # plot histograms and 2D polar plot
+    histo_size = histogram(
+        data[:, 1], xtitle="oocyte sizes", ytitle="", title=" ", aspect=2
+    ).clone2d(size=0.75)
+    histo_spline = histogram(
+        data[:, 0],
+        xtitle="density along spline",
+        ytitle="",
+        title=" ",
+        aspect=2,
+        c="red5",
+    ).clone2d("bottom-right", 0.75)
+    histo_2d = histogram(
+        angles + np.pi / 2,
+        mode="polar",
+        bins=8,  # rotate 90°
+        cmap="viridis_r",
+        show_errors=1,
+        show_lines=1,
+    )
+
+
+    on0 = [olines, respline, fplane, vlines, labels, *vlabels]
+    on1 = [histo_size, histo_spline, histo_2d]
+    for o in on0 + on1:
+        o.name = "onpick"
+    plt.at(0).remove("onpick").add(on0)
+    plt.at(1).remove("onpick").add(on1)
+    plt.reset_camera().render()
+
+
+
+
+def onbutton(event):
+    if event.keypress == "f":
+        onpick(flip=-1)  # flip the plane normal and recompute
+
+
+
+
+######################################################################################
+settings.default_font = "Antares"
+
+
+histo_vol = histogram(
+    svol,
+    aspect=3,
+    c="p5",
+    alpha=0.5,
+    xtitle="volume scalar range",
+    ytitle="",
+    title=" ",
+    logscale=False,
+)
+a0 = max(histo_vol.frequencies) / 2
+if isovalue is None:
+    scrange = svol.scalar_range()
+    isovalue = (2 * scrange[0] + scrange[1]) / 3.0
+histo_vol += Arrow2D([isovalue, a0], [isovalue, 0]).z(1).c("red5")
+histo_vol = histo_vol.clone2d("bottom-right", size=1.1)
+
+
+txt_info = Text2D(
+    f"spacing: {spacing}\n"
+    + f"volume smoothing: {smoothing}\n"
+    + f"isosurface value: {int(isovalue)}\n"
+    + f"oocyte radius: {R1} < r < {R2}",
+    pos="top-left",
+    bg="k",
+    s=0.9,
+    c="w",
+    alpha=0.25,
+)
+
+
+surface.c("k", 0.02).lighting("off").wireframe()
+otitle = Text2D(f"Ovary: {ovary_name}", s=1.5, bg="y5", pos="top=center")
+centers_inrange = centers[sizes < R2]
+sizes_inrange = sizes[sizes < R2]
+spheres = Spheres(centers_inrange, r=sizes_inrange/2, alpha=0.25).cmap("jet", "Radii")###arturo add r=sizes_inrange/2 to better visualize the ovary to fit a spline
+if len(nodes) == 0:
+    x0, x1, y0, y1, z0, z1 = spheres.bounds()
+    nodes = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)]
+
+
+
+plt = Plotter(N=2, axes=4, sharecam=False, size=(2200, 1100), title="Ovary Analysis Viewer")
+sptool = plt.add_spline_tool(nodes)
+sptool.add_observer("end of interaction", onpick)
+plt.add_callback("KeyPress", onbutton)
+plt.at(0).show(otitle, spheres, surface, histo_vol, txt_info)
+plt.at(1).freeze()
+onpick()  # start the analysis
+plt.interactive().close()
