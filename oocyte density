@@ -2,13 +2,9 @@ import pandas as pd
 import numpy as np 
 import matplotlib.pyplot as plt
 import scipy.spatial as sp
-import os
-from mpl_toolkits import mplot3d
 %matplotlib qt
 import os, glob
 import os, sys
-import seaborn 
-import matplotlib.animation as animation
 from IPython import display
 import vedo
 seaborn.set()
