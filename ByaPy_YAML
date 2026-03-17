@@ -1,0 +1,96 @@
+DATA:
+  EXTRACT_RANDOM_PATCH: false
+  NORMALIZATION:
+    CUSTOM_MEAN: -1.0
+    CUSTOM_STD: -1.0
+    TYPE: custom
+  PATCH_SIZE: (40,128,128,1)
+  REFLECT_TO_COMPLETE_SHAPE: true
+  TEST:
+    ARGMAX_TO_OUTPUT: true
+    IN_MEMORY: false
+    LOAD_GT: false
+    OVERLAP: (0,0,0)
+    PADDING: (10,50,50)
+    PATH: "insert the folder path of your data in tiff format"
+    RESOLUTION: (5,0.867,0.867)
+LOSS:
+  CLASS_REBALANCE: true
+  TYPE: CE
+MODEL:
+  ARCHITECTURE: resunet
+  DROPOUT_VALUES:
+  - 0
+  - 0
+  - 0
+  - 0
+  FEATURE_MAPS:
+  - 48
+  - 64
+  - 80
+  - 96
+  LOAD_CHECKPOINT: true
+  N_CLASSES: 2
+  SOURCE: biapy
+  Z_DOWN:
+  - 1
+  - 1
+  - 1
+PATHS:
+  CHECKPOINT_FILE: "insert the path of the check point file"
+PROBLEM:
+  INSTANCE_SEG:
+    DATA_CHANNELS: BCD
+    DATA_CHANNEL_WEIGHTS: (1,1)
+    DATA_MW_TH_BINARY_MASK: 0.5
+    DATA_MW_TH_CONTOUR: 0.2
+    DATA_MW_TH_DISTANCE: 1.0
+    DATA_MW_TH_FOREGROUND: 0.3
+    DATA_MW_TH_TYPE: manual
+    DATA_REMOVE_BEFORE_MW: true
+    DATA_REMOVE_SMALL_OBJ_BEFORE: 10
+    DISTANCE_CHANNEL_MASK: true
+  NDIM: 3D
+  TYPE: INSTANCE_SEG
+SYSTEM:
+  NUM_CPUS: -1
+  NUM_WORKERS: 5
+  SEED: 0
+TEST:
+  BY_CHUNKS:
+    ENABLE: true
+    FLUSH_EACH: 100
+    FORMAT: zarr
+    INPUT_IMG_AXES_ORDER: ZYXC
+    INPUT_MASK_AXES_ORDER: TZCYX
+    SAVE_OUT_TIF: true
+    WORKFLOW_PROCESS:
+      ENABLE: true
+      TYPE: entire_pred
+  ENABLE: true
+  MATCHING_STATS: true
+  MATCHING_STATS_THS:
+  - 0.3
+  - 0.5
+  - 0.75
+  POST_PROCESSING:
+    MEASURE_PROPERTIES:
+      ENABLE: true
+      REMOVE_BY_PROPERTIES:
+        ENABLE: true
+        PROPS:
+        - - npixels
+        - - sphericity
+          - npixels
+        SIGNS:
+        - - le
+        - - lt
+          - lt
+        VALUES:
+        - - 150
+        - - 0.01
+          - 2000
+  REDUCE_MEMORY: true
+  VERBOSE: true
+TRAIN:
+  ENABLE: false
