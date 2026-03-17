@@ -10,9 +10,12 @@
 
  The following packages are required :
 
- pandas
- numpy
- matplotlib
- seaborne
- vedo
+ -pandas
+ -numpy
+ -matplotlib
+ -seaborne
+ -scipy
+ -os
+ -glob
+ -vedo
  
