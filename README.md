@@ -8,7 +8,7 @@
  -radial quantification
  
 Please download a representative ovarian sample from the following link: https://doi.org/10.5281/zenodo.19085211
-
+This code was last run and tested with window 10 and with Python 3.11.4 
  The following packages are required :
 
  -pandas
