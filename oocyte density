@@ -1,19 +1,25 @@
+
+####
+####
+####  To run the code create a folder with all the segmented oocyte in xlsx format, a single excel file for each ovary. 
+####  Name each xlsx file with the "age group" _ "ovary id" information, eg; w05_100104 
+####  The xlsx must cointain coloumns for the x, y ,z center of mass of each occyte and relative diameter.
+####  Adjust the pixel size to your settings
+
+
 import pandas as pd 
 import numpy as np 
-import matplotlib.pyplot as plt
-import scipy.spatial as sp
-%matplotlib qt
+import os
 import os, glob
 import os, sys
 from IPython import display
 import vedo
-seaborn.set()
 vedo.settings.default_backend ="vtk"
-import seaborn as sns
-
 
 
 def density_oocyte(input_folder, output_folder):
+
+    pix_size = 0.867 
    
     # Create the output folder if it doesn't exist
     if not os.path.exists(output_folder):
@@ -29,12 +35,10 @@ def density_oocyte(input_folder, output_folder):
             data["diameter"] = data["aligned_sqrt_ab"]
             
 
-            # age = "week5"
-            
 
             data = pd.DataFrame([data["Centroid.X"]*pix_size, data["Centroid.Y"]*pix_size, data["Centroid.Z"]*5,
                          data["diameter"]]).transpose()
-            print(data)
+          
             
             th1 = 16.30343369556121
             th2 = 20.119707705759104
@@ -47,17 +51,18 @@ def density_oocyte(input_folder, output_folder):
             x, y, z, d = primo["Centroid.X"].to_numpy().astype(float), primo["Centroid.Y"].to_numpy().astype(float), primo["Centroid.Z"].to_numpy().astype(float),primo["diameter"].to_numpy().astype(float)
             pts =  np.c_[x, y, z]
 
-
-
             x4, y4, z4, d4 = transitioning["Centroid.X"].to_numpy().astype(float), transitioning["Centroid.Y"].to_numpy().astype(float), transitioning["Centroid.Z"].to_numpy().astype(float),transitioning["diameter"].to_numpy().astype(float)
             pts4 =  np.c_[x4, y4, z4]
 
-            primo_vedo = vedo.Points(pts)
 
+
+            primo_vedo = vedo.Points(pts)
             transisitoning_vedo = vedo.Points(pts4)
-#vedo.show(primo_vedo,primary_vedo,axes=1).close()
+
+
+
             radius= 100
-            #pts = primo
+            ##it calculate the number of primordial coitained in a 100um radius from each primordial
             df =[]
             for p in (pts):
 
@@ -68,8 +73,7 @@ def density_oocyte(input_folder, output_folder):
             df= pd.DataFrame(df)
 
             
-
-
+            ##it calculate the number of transitioning cointained in a 100um radius from each primordial
             df11 =[]
             for p in (pts):
                 pts_btran= transisitoning_vedo.closest_point(p,radius=radius)
@@ -77,24 +81,14 @@ def density_oocyte(input_folder, output_folder):
                 df11.append(n)
             df11= pd.DataFrame(df11)
 
-            radius1= 100
 
-            df2 =[]
-
+            ##it calculate the number of primoridial cointained in a 100um radius from each transitioning
             df_trans =[]
             for p in (pts4):
-                pts_c= primo_vedo.closest_point(p,radius=radius1)
+                pts_c= primo_vedo.closest_point(p,radius=radius)
                 n = len(pts_c)
                 df_trans.append(n)
             df_trans= pd.DataFrame(df_trans)
-
-            df_trans_trans =[]
-            for p in (pts4):
-                pts_c= transisitoning_vedo.closest_point(p,radius=radius1)
-                n = len(pts_c)
-                df_trans_trans.append(n)
-            df_trans_trans= pd.DataFrame(df_trans_trans)
-        
 
             file_name = os.path.basename(file)
       
@@ -104,17 +98,13 @@ def density_oocyte(input_folder, output_folder):
            
             df_total = pd.DataFrame()
             df_total["primo_primo"]= df
-            df_total["primary"]= df1
             df_total["transitioning"]= df11
             df_total["primordia_in100umtransition"]= df_trans
-            df_total["transitioning_in100umtransition"]= df_trans_trans
             df_total["radious_primo_primo"]= radius
-            df_total["secondary_primary"]= df2
-            df_total["antral_primary"]= df3
-            df_total["radious_other"]= radius1
+  
+            df_total["age"] = file_name.split('_')[0]  # Extract 'w22' part
+            df_total["id"] = file_name.split('_')[1].split('.')[0]  # Extract '090987' part
 
-            df_total["age"] = file_name.split('_')[0] 
-            df_total["id"] = file_name.split('_')[1].split('.')[0]  
 
    
 
@@ -129,9 +119,8 @@ def density_oocyte(input_folder, output_folder):
             print(f"File '{file}' saved to '{output_path}'.")
 
         
-
-            
-
-input_folder = r"path to folder with all the xlsx file of segmented oocytes. the file name has th start with th e age, eg.: w5_100104"
-output_folder = r"path to save output"
+input_folder = r"Y:\adangelo\2024\final_corrected_data\peak_normalization\split\split_files"
+output_folder = r"Y:\adangelo\2024\final_corrected_data\peak_normalization\test"
+# input_folder = ### insert the folder path with all the excel file with the segmented oocyte
+# output_folder = ### inset the folder path where to save the results
 density_oocyte(input_folder, output_folder)
