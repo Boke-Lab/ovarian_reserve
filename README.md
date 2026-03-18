@@ -5,8 +5,9 @@
  -ByaPy oocyte Detection
  -oocyte density 
  -model ovarian reserve
- -radial quantificatin
-
+ -radial quantification
+ 
+Please download a representative ovarian sample from the following link: https://doi.org/10.5281/zenodo.19085211
 
  The following packages are required :
 
