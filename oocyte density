@@ -14,8 +14,6 @@ import seaborn as sns
 
 
 def density_oocyte(input_folder, output_folder):
-
-    pix_size = 0.867 
    
     # Create the output folder if it doesn't exist
     if not os.path.exists(output_folder):
@@ -115,9 +113,8 @@ def density_oocyte(input_folder, output_folder):
             df_total["antral_primary"]= df3
             df_total["radious_other"]= radius1
 
-            df_total["age"] = file_name.split('_')[0]  # Extract 'w22' part
-            df_total["id"] = file_name.split('_')[1].split('.')[0]  # Extract '090987' part
-
+            df_total["age"] = file_name.split('_')[0] 
+            df_total["id"] = file_name.split('_')[1].split('.')[0]  
 
    
 
