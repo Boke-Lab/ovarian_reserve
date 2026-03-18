@@ -1,3 +1,14 @@
+
+####
+####
+####
+#### this code generate an isosurface of the ovary, overlay the segmented oocytes, allow 3D rotations of the ovary and manual positioning of the spline
+#### to run it require the raw tif file of the ovary and the xlsx file with the segmented oocyte to be in the same folder. 
+#### The naming of the file follows this structure: 
+# 
+#### w60_121741.tif(for the raw tiff file), w60_121741_corrected-morpho.xlsx(for the segmented oocyte file) 
+#### w60_121741 will be the ovary_name variable the it will recognize automatically the tiff file and the corrected-morpho.xlsx file.
+
 import numpy as np
 import pandas as pd
 from os.path import join, exists
@@ -6,8 +17,9 @@ from vedo import Text3D, Lines, settings, Plotter, Spheres, Arrow2D
 from vedo.pyplot import histogram
 
 
-directory  = r"insert here path of the folder. The folder must contain the xlsx file with the segmented oocyte coordinate and the raw tiff file of the ovary"
-ovary_name = "w60_121741" # insert the name of the ovary to be processsed
+######################################################## parameters"Y:\adangelo\2024\final_corrected_data\60w\radial_quantification\proj2_115037_px.tif"
+directory  = ###insert the path to the folder with the tiff file and the respective xlsx
+ovary_name = "w60_121741" 
 spacing    = [0.867,0.867, 5]  # spacing in um
 spacing_seg = [0.867, 0.867, 5]
 isovalue   = None  # None is automatic
@@ -48,19 +60,7 @@ else:
     surface = Mesh(join(directory, f"{ovary_name}_smoothed_surf.vtk"))
 
 
-# if not exists(join(directory, f"{ovary_name}_corrected_arturo_regions.vtk")):
-#     printc("Computing regions: ", f"{ovary_name}_corrected_arturo_regions.vtk", c="y", italic=True)
-#     vol_seg = Volume(join(directory, f"{ovary_name}_corrected_arturo.tif")).spacing(spacing)
-#     nlabels = int(vol_seg.scalar_range()[1])
-#     values = list(range(1, nlabels))
-#     mesh_regions = vol_seg.isosurface_discrete(values, nsmooth=10).clean().triangulate()
-#     arr = mesh_regions.celldata["BoundaryLabels"].astype(np.uint32)
-#     mesh_regions.celldata["BoundaryLabels"] = arr[:, 0]
-#     mesh_regions.map_cells_to_points(move=True)
-#     arr = mesh_regions.pointdata["BoundaryLabels"]
-#     pts = mesh_regions.vertices
 
-# data = pd.read_excel(r"Y:\adangelo\2024\final_corrected_data\5w\corrected\recheckd_20240904\morphilibj\diameter_in_im\w05_133230_230039016_corrected-morpho.xlsx")
 data= pd.read_excel(join(directory, f"{ovary_name}_corrected-morpho.xlsx"))
     # cms, avg_sizes = [], []
     # for i in range(int(max(arr) + 1)):
@@ -79,11 +79,7 @@ y= data["Centroid.Y"]
 z= data["Centroid.Z"]
 cms= np.c_[x,y,z]*spacing_seg
 avg_sizes = data["sqrt(a*b)"]
-# else:
-#     printc("Regions already computed: ", f"{ovary_name}_corrected_arturo_regions.vtk", c="g", italic=True)
-#     mesh_regions = Mesh(join(directory,  f"{ovary_name}_corrected_arturo_regions.vtk"))
-# centers = mesh_regions.metadata["centers"]
-# sizes = mesh_regions.metadata["sizes"]
+
 centers = cms ###cambio center per cms
 sizes = avg_sizes ###cambio  mesh_regions.metadata["sizes"] per avg_sizes
 
