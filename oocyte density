@@ -119,8 +119,7 @@ def density_oocyte(input_folder, output_folder):
             print(f"File '{file}' saved to '{output_path}'.")
 
         
-input_folder = r"Y:\adangelo\2024\final_corrected_data\peak_normalization\split\split_files"
-output_folder = r"Y:\adangelo\2024\final_corrected_data\peak_normalization\test"
-# input_folder = ### insert the folder path with all the excel file with the segmented oocyte
-# output_folder = ### inset the folder path where to save the results
+
+input_folder = ### insert the folder path with all the excel file with the segmented oocyte
+output_folder = ### inset the folder path where to save the results
 density_oocyte(input_folder, output_folder)
