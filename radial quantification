@@ -17,7 +17,7 @@ from vedo import Text3D, Lines, settings, Plotter, Spheres, Arrow2D
 from vedo.pyplot import histogram
 
 
-######################################################## parameters"Y:\adangelo\2024\final_corrected_data\60w\radial_quantification\proj2_115037_px.tif"
+######################################################## parameters
 directory  = ###insert the path to the folder with the tiff file and the respective xlsx
 ovary_name = "w60_121741" 
 spacing    = [0.867,0.867, 5]  # spacing in um
