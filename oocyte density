@@ -32,7 +32,7 @@ def density_oocyte(input_folder, output_folder):
             input_path = os.path.join(input_folder, file)
             data = pd.read_excel(input_path)
 
-            data["diameter"] = data["aligned_sqrt_ab"]
+            # data["diameter"] = data["aligned_sqrt_ab"]
             
 
 
@@ -53,7 +53,6 @@ def density_oocyte(input_folder, output_folder):
 
             x4, y4, z4, d4 = transitioning["Centroid.X"].to_numpy().astype(float), transitioning["Centroid.Y"].to_numpy().astype(float), transitioning["Centroid.Z"].to_numpy().astype(float),transitioning["diameter"].to_numpy().astype(float)
             pts4 =  np.c_[x4, y4, z4]
-
 
 
             primo_vedo = vedo.Points(pts)
@@ -97,10 +96,10 @@ def density_oocyte(input_folder, output_folder):
 
            
             df_total = pd.DataFrame()
-            df_total["primo_primo"]= df
-            df_total["transitioning"]= df11
-            df_total["primordia_in100umtransition"]= df_trans
-            df_total["radious_primo_primo"]= radius
+            df_total["primordial_in 100um__primordial"]= df
+            df_total["transitioning_in_100um_primodial"]= df11
+            df_total["primordial_in_100_um_transitioning"]= df_trans
+            df_total["radious"]= radius
   
             df_total["age"] = file_name.split('_')[0]  # Extract 'w22' part
             df_total["id"] = file_name.split('_')[1].split('.')[0]  # Extract '090987' part
@@ -120,6 +119,6 @@ def density_oocyte(input_folder, output_folder):
 
         
 
-input_folder = ### insert the folder path with all the excel file with the segmented oocyte
+input_folder =### insert the folder path with all the excel file with the segmented oocyte
 output_folder = ### inset the folder path where to save the results
 density_oocyte(input_folder, output_folder)
