@@ -2,6 +2,8 @@
 ####
 ####
 ####  To run the code create a folder with all the segmented oocyte in xlsx format, a single excel file for each ovary. 
+####  Please download the test file from zenodo:
+####  https://doi.org/10.5281/zenodo.19085211
 ####  Name each xlsx file with the "age group" _ "ovary id" information, eg; w05_100104 
 ####  The xlsx must cointain coloumns for the x, y ,z center of mass of each occyte and relative diameter.
 ####  Adjust the pixel size to your settings
