@@ -4,7 +4,9 @@
 ####
 ####
 #### this code generate an isosurface of the ovary, overlay the segmented oocytes, allow 3D rotations of the ovary and manual positioning of the spline
-#### to run it require the raw tif file of the ovary and the xlsx file with the segmented oocyte to be in the same folder. 
+#### to run it require the raw tif file of the ovary and the xlsx file with the segmented oocyte to be in the same folder. Please download the test file from zenodo:
+https://doi.org/10.5281/zenodo.19085211
+
 #### The naming of the file follows this structure: 
 ####
 #### w05_100104.tif(for the raw tiff file), w05_100104_corrected-morpho.xlsx(for the segmented oocyte file) 
@@ -82,7 +84,7 @@ x= data["Centroid.X"]
 y= data["Centroid.Y"]
 z= data["Centroid.Z"]
 cms= np.c_[x,y,z]*spacing_seg
-avg_sizes = data["sqrt(a*b)"]
+avg_sizes = data["diameter"]
 
 centers = cms ###cambio center per cms
 sizes = avg_sizes ###cambio  mesh_regions.metadata["sizes"] per avg_sizes
