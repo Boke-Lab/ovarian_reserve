@@ -1,13 +1,17 @@
 
+
 ####
 ####
 ####
 #### this code generate an isosurface of the ovary, overlay the segmented oocytes, allow 3D rotations of the ovary and manual positioning of the spline
 #### to run it require the raw tif file of the ovary and the xlsx file with the segmented oocyte to be in the same folder. 
 #### The naming of the file follows this structure: 
-# 
-#### w60_121741.tif(for the raw tiff file), w60_121741_corrected-morpho.xlsx(for the segmented oocyte file) 
-#### w60_121741 will be the ovary_name variable the it will recognize automatically the tiff file and the corrected-morpho.xlsx file.
+####
+#### w05_100104.tif(for the raw tiff file), w05_100104_corrected-morpho.xlsx(for the segmented oocyte file) 
+#### w05_100104 will be the ovary_name variable the it will recognize automatically the tiff file and the corrected-morpho.xlsx file.
+#### click and drag on the spline move the spline and position to the center of the ovary
+#### press "f" to change the plane of the spline
+
 
 import numpy as np
 import pandas as pd
@@ -18,8 +22,8 @@ from vedo.pyplot import histogram
 
 
 ######################################################## parameters
-directory  = ###insert the path to the folder with the tiff file and the respective xlsx
-ovary_name = "w60_121741" 
+directory  = ######insert the path to the folder with the tiff file and the respective xlsx
+ovary_name = "w05_100104" 
 spacing    = [0.867,0.867, 5]  # spacing in um
 spacing_seg = [0.867, 0.867, 5]
 isovalue   = None  # None is automatic
@@ -239,7 +243,7 @@ surface.c("k", 0.02).lighting("off").wireframe()
 otitle = Text2D(f"Ovary: {ovary_name}", s=1.5, bg="y5", pos="top=center")
 centers_inrange = centers[sizes < R2]
 sizes_inrange = sizes[sizes < R2]
-spheres = Spheres(centers_inrange, r=sizes_inrange/2, alpha=0.25).cmap("jet", "Radii")###arturo add r=sizes_inrange/2 to better visualize the ovary to fit a spline
+spheres = Spheres(centers_inrange, r=sizes_inrange/2, alpha=0.25).cmap("jet", "Radii")###add r=sizes_inrange/2 to better visualize the ovary to fit a spline
 if len(nodes) == 0:
     x0, x1, y0, y1, z0, z1 = spheres.bounds()
     nodes = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)]
