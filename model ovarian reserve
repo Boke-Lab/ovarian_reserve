@@ -31,9 +31,8 @@ UB = np.array([0.5, 0.5, 0.5, 0.8, 0.8], dtype=float)
 # If you switch to rates, consider UB like [2.0, 2.0, 2.0, 1.0, 1.0] (/week)
 # and set USE_PROBABILITIES_FOR_PS = False
 
-
-# data for the model
-# ntypes = ['primordial(<18)', 'primary', 'secondary', 'antral']
+# data for the model download the data from zenodo
+ntypes = ["primordial", "primary", "secondary", "antral"]
 # data_05 = pd.read_excel("data/week05.xlsx")
 # data_10 = pd.read_excel("data/week10.xlsx")
 # data_22 = pd.read_excel("data/week22.xlsx")
@@ -68,7 +67,7 @@ data_xls = data_xls.dropna(subset=ntypes + ["week", "volume"]).reset_index(drop=
 # Normalize counts by volume (your original code divided by volumes/2)
 volumes = data_xls["volume"].to_numpy()
 for ntype in ntypes:
-    data_xls[ntype] = data_xls[ntype] / (volumes / 2.0)
+    data_xls[ntype] = data_xls[ntype] / (volumes / 2)
 
 
 # Prepare arrays
@@ -350,5 +349,5 @@ axs[0].legend(loc="upper right", frameon=False)
 
 
 fig.tight_layout()
-fig.savefig(##insert here the path for saving the figure .pdf",dpi=600, bbox_inches='tight', format='pdf')
+# fig.savefig(####insert the path to save the figure)
 plt.show()
